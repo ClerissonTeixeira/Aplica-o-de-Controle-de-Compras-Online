@@ -1,60 +1,129 @@
 package repositorios;
 
-import interfaces.RepositorioProdutos;
 import entidades.Produto;
+import enums.TipoProduto;
+import interfaces.RepositorioProdutos;
+import utils.ConexaoMySQL;
+
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-// Implementação CRUD do repositório de produtos
 public class RepositorioProdutosImpl implements RepositorioProdutos {
-    private List<Produto> produtos;
 
-    // Construtor da classe RepositorioProdutosImpl
-    public RepositorioProdutosImpl() {
-        this.produtos = new ArrayList<>();
-    }
+	@Override
+	public void adicionarProduto(Produto produto) {
+	    String sqlBusca = "SELECT COUNT(*) FROM produtos WHERE nome = ? AND preco = ? AND tipo = ?";
+	    String sqlInsercao = "INSERT INTO produtos (nome, preco, tipo) VALUES (?, ?, ?)";
 
-    // Create - Adiciona um produto ao repositório
-    @Override
-    public void adicionarProduto(Produto produto) {
-        produtos.add(produto);
-    }
+	    try (Connection conn = ConexaoMySQL.getConnection();
+	         PreparedStatement stmtBusca = conn.prepareStatement(sqlBusca)) {
 
-    // Read - Lista todos os produtos
-    @Override
-    public List<Produto> listarProdutos() {
-        return produtos;
-    }
+	        // Verifica se o produto já existe
+	        stmtBusca.setString(1, produto.getNome());
+	        stmtBusca.setDouble(2, produto.getPreco());
+	        stmtBusca.setString(3, produto.getTipo().name());
+	        ResultSet rs = stmtBusca.executeQuery();
 
-    // Read - Busca um produto pelo nome
-    @Override
-    public Produto buscarProdutoPorNome(String nome) {
-        for (Produto produto : produtos) {
-            if (produto.getNome().equalsIgnoreCase(nome)) {
-                return produto;
-            }
-        }
-        return null; // Retorna null se o produto não for encontrado
-    }
+	        if (rs.next() && rs.getInt(1) == 0) {
+	            // Insere apenas se o produto não existir
+	            try (PreparedStatement stmtInsercao = conn.prepareStatement(sqlInsercao)) {
+	                stmtInsercao.setString(1, produto.getNome());
+	                stmtInsercao.setDouble(2, produto.getPreco());
+	                stmtInsercao.setString(3, produto.getTipo().name());
+	                stmtInsercao.executeUpdate();
+	            }
+	        }
 
-    // Update - Atualiza um produto existente
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	    }
+	}
+
+	@Override
+	public List<Produto> listarProdutos() {
+	    List<Produto> produtos = new ArrayList<>();
+	    String sql = "SELECT DISTINCT nome, preco, tipo FROM produtos";
+
+	    try (Connection conn = ConexaoMySQL.getConnection();
+	         Statement stmt = conn.createStatement();
+	         ResultSet rs = stmt.executeQuery(sql)) {
+
+	        while (rs.next()) {
+	            Produto produto = new Produto(
+	                rs.getString("nome"),
+	                rs.getDouble("preco"),
+	                TipoProduto.valueOf(rs.getString("tipo").toUpperCase())
+	            );
+	            produtos.add(produto);
+	        }
+
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	    }
+
+	    return produtos;
+	}
+
+	@Override
+	public Produto buscarProdutoPorNome(String nome) {
+	    Produto produto = null;
+	    String sql = "SELECT id, nome, preco, tipo FROM produtos WHERE nome = ?";
+
+	    try (Connection conn = ConexaoMySQL.getConnection();
+	         PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+	        stmt.setString(1, nome);
+	        ResultSet rs = stmt.executeQuery();
+
+	        if (rs.next()) {
+	            produto = new Produto(
+	                rs.getString("nome"),
+	                rs.getDouble("preco"),
+	                TipoProduto.valueOf(rs.getString("tipo").toUpperCase())
+	            );
+	            produto.setId(rs.getInt("id")); // Configura o ID do produto
+	        }
+
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	    }
+
+	    return produto;
+	}
+
     @Override
     public void atualizarProduto(Produto produtoAtualizado) {
-        Produto produto = buscarProdutoPorNome(produtoAtualizado.getNome());
-        if (produto != null) {
-            produto.setPreco(produtoAtualizado.getPreco());
-            produto.setTipo(produtoAtualizado.getTipo());
+        String sql = "UPDATE produtos SET preco = ?, tipo = ? WHERE nome = ?";
+
+        try (Connection conn = ConexaoMySQL.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setDouble(1, produtoAtualizado.getPreco());
+            stmt.setString(2, produtoAtualizado.getTipo().name());
+            stmt.setString(3, produtoAtualizado.getNome());
+            stmt.executeUpdate();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
-    // Delete - Remove um produto pelo nome
     @Override
     public boolean removerProdutoPorNome(String nome) {
-        Produto produto = buscarProdutoPorNome(nome);
-        if (produto != null) {
-            produtos.remove(produto);
-            return true;
+        String sql = "DELETE FROM produtos WHERE nome = ?";
+
+        try (Connection conn = ConexaoMySQL.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, nome);
+            int rowsAffected = stmt.executeUpdate();
+            return rowsAffected > 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
+
         return false;
     }
 }

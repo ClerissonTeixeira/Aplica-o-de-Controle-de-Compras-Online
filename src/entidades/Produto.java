@@ -4,6 +4,7 @@ import enums.TipoProduto;
 
 // Classe Produto com o tipo definido por um Enum
 public class Produto {
+	private int id; 
     private String nome;
     private double preco;
     private TipoProduto tipo;
@@ -16,6 +17,15 @@ public class Produto {
     }
 
     // Getters e Setters
+    
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+    
     public String getNome() {
         return nome;
     }
